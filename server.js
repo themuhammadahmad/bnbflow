@@ -217,7 +217,7 @@ app.post("/api/stripe/create-subscription", auth, async (req, res) => {
       mode: "subscription",
       success_url: `${req.headers.origin || "http://localhost:3000"}/tabs/index.html`,
       cancel_url: `${req.headers.origin || "http://localhost:3000"}/tabs/index.html`,
-      chrome-extension://idjfnpkkmeafmibcdkbmbaaknfojjaed/tabs/index.html
+      
       metadata: {
         userId: user._id.toString()
       }
