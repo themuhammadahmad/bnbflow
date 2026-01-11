@@ -9,10 +9,11 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const app = express();
 
 // Middleware
-app.use(cors({
-  origin: ['chrome-extension://*', 'http://localhost:3000'],
-  credentials: true
-}));
+// app.use(cors({
+//   origin: ['chrome-extension://*', 'http://localhost:3000'],
+//   credentials: true
+// }));
+app.use(cors())
 app.use(express.json());
 
 // Global variable to cache connection
