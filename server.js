@@ -30,6 +30,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 
   // Handle the event
   switch (event.type) {
+    // 1. When checkout is completed
     case "checkout.session.completed":
       const session = event.data.object;
       const userId = session.metadata?.userId;
@@ -40,26 +41,95 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
             subscriptionActive: true,
             subscriptionId: session.subscription
           });
-          console.log(`Subscription activated for user: ${userId}`);
+          console.log(`✅ Subscription activated for user: ${userId}`);
         } catch (updateError) {
           console.error("Failed to update user subscription:", updateError);
         }
       }
       break;
-      
-    case "customer.subscription.deleted":
+    
+    // 2. When subscription is updated
+    case "customer.subscription.updated":
       const subscription = event.data.object;
       
       try {
-        await User.findOneAndUpdate(
-          { stripeCustomerId: subscription.customer },
-          { subscriptionActive: false }
-        );
-        console.log(`Subscription deactivated for customer: ${subscription.customer}`);
+        const user = await User.findOne({ stripeCustomerId: subscription.customer });
+        if (user) {
+          // Update based on subscription status
+          user.subscriptionActive = subscription.status === 'active' || subscription.status === 'trialing';
+          user.subscriptionId = subscription.id;
+          await user.save();
+          console.log(`📝 Subscription updated for customer: ${subscription.customer}, Status: ${subscription.status}`);
+        }
       } catch (updateError) {
-        console.error("Failed to deactivate subscription:", updateError);
+        console.error("Failed to update subscription:", updateError);
       }
       break;
+    
+    // 3. When subscription is deleted
+    case "customer.subscription.deleted":
+      const deletedSubscription = event.data.object;
+      
+      try {
+        await User.findOneAndUpdate(
+          { stripeCustomerId: deletedSubscription.customer },
+          { subscriptionActive: false, subscriptionId: null }
+        );
+        console.log(`❌ Subscription deleted for customer: ${deletedSubscription.customer}`);
+      } catch (updateError) {
+        console.error("Failed to delete subscription:", updateError);
+      }
+      break;
+    
+    // 4. When payment succeeded
+    case "invoice.payment_succeeded":
+      const invoice = event.data.object;
+      
+      if (invoice.subscription) {
+        try {
+          await User.findOneAndUpdate(
+            { stripeCustomerId: invoice.customer },
+            { 
+              subscriptionActive: true,
+              lastPaymentDate: new Date()
+            }
+          );
+          console.log(`💰 Payment succeeded for customer: ${invoice.customer}, Amount: $${invoice.amount_paid/100}`);
+        } catch (updateError) {
+          console.error("Failed to update payment success:", updateError);
+        }
+      }
+      break;
+    
+    // 5. When payment failed
+    case "invoice.payment_failed":
+      const failedInvoice = event.data.object;
+      
+      if (failedInvoice.subscription) {
+        try {
+          const user = await User.findOne({ stripeCustomerId: failedInvoice.customer });
+          if (user) {
+            // Increment failure count
+            user.paymentFailureCount = (user.paymentFailureCount || 0) + 1;
+            user.lastPaymentFailed = new Date();
+            
+            // Deactivate after 3 failures
+            if (user.paymentFailureCount >= 3) {
+              user.subscriptionActive = false;
+              console.log(`🚫 Subscription deactivated due to multiple failed payments for: ${failedInvoice.customer}`);
+            }
+            
+            await user.save();
+            console.log(`❌ Payment failed for customer: ${failedInvoice.customer}, Failure count: ${user.paymentFailureCount}`);
+          }
+        } catch (updateError) {
+          console.error("Failed to update payment failure:", updateError);
+        }
+      }
+      break;
+    
+    default:
+      console.log(`⚠️ Unhandled event type: ${event.type}`);
   }
 
   res.json({ received: true });
