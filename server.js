@@ -9,10 +9,11 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const app = express();
 
 // CORS for Chrome extension
-app.use(cors({
-  origin: ['http://localhost:3000', 'chrome-extension://*'],
-  credentials: true
-}));
+// app.use(cors({
+//   origin: ['http://localhost:3000', 'chrome-extension://*'],
+//   credentials: true
+// }));
+app.use(cors())
 
 // Middleware
 app.use(express.json());
@@ -214,8 +215,9 @@ app.post("/api/stripe/create-subscription", auth, async (req, res) => {
         }
       ],
       mode: "subscription",
-      success_url: `${req.headers.origin || "http://localhost:3000"}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${req.headers.origin || "http://localhost:3000"}/cancel`,
+      success_url: `${req.headers.origin || "http://localhost:3000"}/tabs/index.html`,
+      cancel_url: `${req.headers.origin || "http://localhost:3000"}/tabs/index.html`,
+      chrome-extension://idjfnpkkmeafmibcdkbmbaaknfojjaed/tabs/index.html
       metadata: {
         userId: user._id.toString()
       }
