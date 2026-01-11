@@ -14,6 +14,56 @@ const app = express();
 //   credentials: true
 // }));
 app.use(cors())
+// Webhook handler
+app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+  const sig = req.headers["stripe-signature"];
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+  } catch (err) {
+    console.error("Webhook error:", err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Handle the event
+  switch (event.type) {
+    case "checkout.session.completed":
+      const session = event.data.object;
+      const userId = session.metadata?.userId;
+      
+      if (userId) {
+        try {
+          await User.findByIdAndUpdate(userId, {
+            subscriptionActive: true,
+            subscriptionId: session.subscription
+          });
+          console.log(`Subscription activated for user: ${userId}`);
+        } catch (updateError) {
+          console.error("Failed to update user subscription:", updateError);
+        }
+      }
+      break;
+      
+    case "customer.subscription.deleted":
+      const subscription = event.data.object;
+      
+      try {
+        await User.findOneAndUpdate(
+          { stripeCustomerId: subscription.customer },
+          { subscriptionActive: false }
+        );
+        console.log(`Subscription deactivated for customer: ${subscription.customer}`);
+      } catch (updateError) {
+        console.error("Failed to deactivate subscription:", updateError);
+      }
+      break;
+  }
+
+  res.json({ received: true });
+});
 app.use(express.json());
 
 // Global variable to cache connection
@@ -484,56 +534,7 @@ app.post("/api/stripe/create-subscription", async (req, res) => {
   }
 });
 
-// Webhook handler
-app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
-  const sig = req.headers["stripe-signature"];
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-  let event;
-
-  try {
-    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-  } catch (err) {
-    console.error("Webhook error:", err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  // Handle the event
-  switch (event.type) {
-    case "checkout.session.completed":
-      const session = event.data.object;
-      const userId = session.metadata?.userId;
-      
-      if (userId) {
-        try {
-          await User.findByIdAndUpdate(userId, {
-            subscriptionActive: true,
-            subscriptionId: session.subscription
-          });
-          console.log(`Subscription activated for user: ${userId}`);
-        } catch (updateError) {
-          console.error("Failed to update user subscription:", updateError);
-        }
-      }
-      break;
-      
-    case "customer.subscription.deleted":
-      const subscription = event.data.object;
-      
-      try {
-        await User.findOneAndUpdate(
-          { stripeCustomerId: subscription.customer },
-          { subscriptionActive: false }
-        );
-        console.log(`Subscription deactivated for customer: ${subscription.customer}`);
-      } catch (updateError) {
-        console.error("Failed to deactivate subscription:", updateError);
-      }
-      break;
-  }
-
-  res.json({ received: true });
-});
 
 // Test endpoint to create a user (for debugging)
 app.post("/api/test/create-user", async (req, res) => {
