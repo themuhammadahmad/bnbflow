@@ -5,26 +5,150 @@ const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const connectDB = require("./config/db");
+
 
 const app = express();
 
-// CORS for Chrome extension
-// app.use(cors({
-//   origin: ['http://localhost:3000', 'chrome-extension://*'],
-//   credentials: true
-// }));
-app.use(cors())
+// Check if running on Vercel
+const isVercel = process.env.VERCEL === "1";
+
+
+
+// Enhanced CORS for Chrome extension and Vercel
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin && isVercel) return callback(null, true);
+    
+    // Allow Chrome extension origins
+    if (origin && origin.startsWith('chrome-extension://')) {
+      return callback(null, true);
+    }
+    
+    // Allow localhost for development
+    if (origin && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+      return callback(null, true);
+    }
+    
+    // Allow your Vercel frontend if you have one
+    if (origin && origin.includes('.vercel.app')) {
+      return callback(null, true);
+    }
+    
+    // For production, you might want to restrict this
+    if (isVercel) {
+      return callback(null, true); // Allow all on Vercel for now
+    }
+    
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
+
+// Increase timeout for serverless
+app.use((req, res, next) => {
+  req.setTimeout(30000, () => {
+    console.log('Request timeout');
+  });
+  res.setTimeout(30000);
+  next();
+});
+
 
 // Middleware
 app.use(express.json());
+// Health check (important for serverless)
+app.get("/api/health", async (req, res) => {
+  try {
+    // Try to connect to DB
+    await connectDB();
+    
+    res.json({ 
+      status: "healthy",
+      environment: isVercel ? "vercel" : "local",
+      timestamp: new Date().toISOString(),
+      database: "connected"
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "unhealthy",
+      environment: isVercel ? "vercel" : "local",
+      timestamp: new Date().toISOString(),
+      database: "disconnected",
+      error: error.message
+    });
+  }
+});
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => console.log("MongoDB connected"))
-  .catch(err => console.log(err));
+// Connect to DB before auth routes (but don't block startup)
+app.use(async (req, res, next) => {
+  // For health check, skip DB connection
+  if (req.path === '/api/health') return next();
+  
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error('Database connection failed:', error.message);
+    res.status(503).json({
+      success: false,
+      error: "Database service unavailable",
+      details: isVercel ? "Vercel serverless issue - check MongoDB Atlas" : "Local DB issue"
+    });
+  }
+});
 
+// Routes
+app.get("/", (req, res) => {
+  res.json({
+    message: "BNB Flow API",
+    status: "running",
+    environment: isVercel ? "production" : "development",
+    endpoints: {
+      auth: {
+        register: "POST /api/auth/register",
+        login: "POST /api/auth/login",
+        checkSubscription: "GET /api/auth/check-subscription"
+      },
+      stripe: {
+        createSubscription: "POST /api/stripe/create-subscription"
+      }
+    }
+  });
+});
+
+// Test MongoDB connection
+app.get("/api/test-mongo", async (req, res) => {
+  try {
+    const db = await connectDB();
+    
+    // Test with a simple query
+    const User = require("./models/User");
+    const userCount = await User.countDocuments();
+    
+    res.json({
+      success: true,
+      message: "MongoDB connection successful",
+      userCount,
+      connectionState: db.readyState,
+      readyState: {
+        0: 'disconnected',
+        1: 'connected',
+        2: 'connecting',
+        3: 'disconnecting'
+      }[db.readyState]
+    });
+  } catch (error) {
+    console.error('MongoDB test failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      name: error.name,
+      code: error.code
+    });
+  }
+});
 // Import User model
 const User = require("./models/User");
 
@@ -311,8 +435,31 @@ app.get("/", (req, res) => {
   `);
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-  console.log(`✅ Stripe Price ID: ${process.env.STRIPE_PRICE_ID}`);
+// Error handler
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).json({
+    success: false,
+    error: "Internal server error",
+    message: isVercel ? "Serverless function error" : "Local server error"
+  });
 });
+
+
+// Export for Vercel serverless
+if (isVercel) {
+  module.exports = app;
+} else {
+  // Local development
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📡 MongoDB URI: ${process.env.MONGODB_URI ? 'Set' : 'Not set'}`);
+  });
+}
+
+// const PORT = process.env.PORT || 5000;
+// app.listen(PORT, () => {
+//   console.log(`✅ Server running on port ${PORT}`);
+//   console.log(`✅ Stripe Price ID: ${process.env.STRIPE_PRICE_ID}`);
+// });
