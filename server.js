@@ -485,7 +485,7 @@ app.post("/api/stripe/create-subscription", async (req, res) => {
 });
 
 // Webhook handler
-app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
   const sig = req.headers["stripe-signature"];
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
