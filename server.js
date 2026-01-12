@@ -386,6 +386,7 @@ app.post("/api/auth/register", async (req, res) => {
 // Login
 app.post("/api/auth/login", async (req, res) => {
   try {
+
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -564,22 +565,24 @@ app.post("/api/stripe/create-subscription", async (req, res) => {
       user.stripeCustomerId = customerId;
       await user.save();
     }
+    let origin = req.headers.origin;
+      const extensionId = origin.replace("chrome-extension://", "");
+      
 
-    // Create checkout session
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      payment_method_types: ["card"],
-      line_items: [{
-        price: process.env.STRIPE_PRICE_ID,
-        quantity: 1
-      }],
-      mode: "subscription",
-      success_url: `${req.headers.origin || "http://localhost:3000"}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${req.headers.origin || "http://localhost:3000"}/cancel`,
-      metadata: {
-        userId: user._id.toString()
-      }
-    });
+const session = await stripe.checkout.sessions.create({
+  customer: customerId,
+  payment_method_types: ["card"],
+  line_items: [{
+    price: process.env.STRIPE_PRICE_ID,
+    quantity: 1
+  }],
+  mode: "subscription",
+  success_url: `${"http://localhost:5000"}/stripe-redirect?session_id={CHECKOUT_SESSION_ID}&status=success&extensionID=${extensionId}`,
+  cancel_url: `${"http://localhost:5000"}/stripe-redirect?session_id={CHECKOUT_SESSION_ID}&status=cancel&extensionID=${extensionId}`,
+  metadata: {
+    userId: user._id.toString()
+  }
+});
 
     res.json({
       success: true,
@@ -602,6 +605,52 @@ app.post("/api/stripe/create-subscription", async (req, res) => {
       error: "Failed to create subscription"
     });
   }
+});
+
+app.get('/stripe-redirect', async (req, res) => {
+  
+  const { session_id, status, extensionID } = req.query;
+  console.log(extensionID);
+  let extensionUrl = `chrome-extension://idjfnpkkmeafmibcdkbmbaaknfojjaed/tabs/index.html`
+  // Return an HTML page that redirects to the extension
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Redirecting to Extension</title>
+      <script>
+        // Get the extension ID (you should know this)
+        const extensionId = 'your-extension-id-here';
+        
+        // Construct the extension URL
+        const extensionUrl = "chrome-extension://idjfnpkkmeafmibcdkbmbaaknfojjaed/tabs/index.html";
+        
+        
+        setTimeout(() => {
+          window.location.href = extensionUrl;
+        }, 100);
+        
+        // Fallback: If redirect fails, show instructions
+        setTimeout(() => {
+          document.getElementById('fallback').style.display = 'block';
+        }, 1000);
+      </script>
+    </head>
+    <body>
+      <h2>Redirecting to extension...</h2>
+      <div id="fallback" style="display: none;">
+        <p>If you're not redirected automatically:</p>
+        <ol>
+          <li>Copy this URL: <span id="extensionUrl"></span></li>
+          <li>Paste it in your browser's address bar</li>
+        </ol>
+        <script>
+          document.getElementById('extensionUrl').textContent = extensionUrl;
+        </script>
+      </div>
+    </body>
+    </html>
+  `);
 });
 
 
