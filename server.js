@@ -577,6 +577,14 @@ const session = await stripe.checkout.sessions.create({
     quantity: 1
   }],
   mode: "subscription",
+  subscription_data: {
+    trial_period_days: 7,
+    trial_settings: {
+      end_behavior: {
+        missing_payment_method: 'cancel'
+      }
+    }
+  },
   success_url: `${"http://localhost:5000"}/stripe-redirect?session_id={CHECKOUT_SESSION_ID}&status=success&extensionID=${extensionId}`,
   cancel_url: `${"http://localhost:5000"}/stripe-redirect?session_id={CHECKOUT_SESSION_ID}&status=cancel&extensionID=${extensionId}`,
   metadata: {
