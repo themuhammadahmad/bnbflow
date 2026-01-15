@@ -208,10 +208,7 @@ async function connectDB2() {
       await mongoose.disconnect();
     }
     
-    await mongoose.connect(mongoUri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
+    await mongoose.connect(mongoUri);
     
     console.log("✅ MongoDB connected");
     return mongoose.connection;
