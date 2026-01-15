@@ -153,7 +153,7 @@ async function connectDB() {
   try {
     // Connection options optimized for serverless
     const options = {
-      useNewUrlParser: true,
+
       useUnifiedTopology: true,
       serverSelectionTimeoutMS: 10000, // 10 seconds timeout
       socketTimeoutMS: 45000, // 45 seconds
