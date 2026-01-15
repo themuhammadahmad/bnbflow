@@ -5,6 +5,10 @@ const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const {checkSubscriptionAndTrackUsage, trackApiUsage} = require('./middleware/check')
+
+// MODELS
+const User = require("./models/User")
 
 const app = express();
 
@@ -13,7 +17,7 @@ const app = express();
 //   origin: ['chrome-extension://*', 'http://localhost:3000'],
 //   credentials: true
 // }));
-app.use(cors())
+app.use(cors("*"))
 // Webhook handler
 app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
   const sig = req.headers["stripe-signature"];
@@ -260,28 +264,8 @@ app.use(async (req, res, next) => {
   }
 });
 
-// ===================== MODELS =====================
-
-// User Schema
-const userSchema = new mongoose.Schema({
-  name: String,
-  email: { type: String, unique: true },
-  password: String,
-  stripeCustomerId: String,
-  subscriptionActive: { type: Boolean, default: false },
-  subscriptionId: String,
-  createdAt: { type: Date, default: Date.now }
-});
-
-// Hash password before saving
-userSchema.pre('save', async function(next) {
-  if (this.isModified('password')) {
-    this.password = await bcrypt.hash(this.password, 10);
-  }
-  next();
-});
-
-const User = mongoose.model('User', userSchema);
+const houseRoutes = require("./routes/houseRoutes");
+app.use("/api", houseRoutes);
 
 // ===================== ROUTES =====================
 
