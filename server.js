@@ -6,7 +6,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const {checkSubscriptionAndTrackUsage, trackApiUsage} = require('./middleware/check')
-
+const connectDB = require("./config/db");
 // MODELS
 const User = require("./models/User")
 
@@ -144,80 +144,80 @@ app.use(express.json());
 let isMongoConnected = false;
 
 // MongoDB connection function
-async function connectDB() {
-  // If already connected, return
-  if (isMongoConnected && mongoose.connection.readyState === 1) {
-    return mongoose.connection;
-  }
+// async function connectDB() {
+//   // If already connected, return
+//   if (isMongoConnected && mongoose.connection.readyState === 1) {
+//     return mongoose.connection;
+//   }
 
-  try {
-    // Connection options optimized for serverless
-    const options = {
+//   try {
+//     // Connection options optimized for serverless
+//     const options = {
 
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 10000, // 10 seconds timeout
-      socketTimeoutMS: 45000, // 45 seconds
-      maxPoolSize: 10,
-      ssl: true,
-      retryWrites: true,
-      w: 'majority'
-    };
+//       useUnifiedTopology: true,
+//       serverSelectionTimeoutMS: 10000, // 10 seconds timeout
+//       socketTimeoutMS: 45000, // 45 seconds
+//       maxPoolSize: 10,
+//       ssl: true,
+//       retryWrites: true,
+//       w: 'majority'
+//     };
 
-    // Your MongoDB Atlas connection string
-    const mongoUri = process.env.MONGODB_URI || "mongodb+srv://learnFirstAdmin:mT4aOUQ8IeZlGqf6@khareedofrokht.h4nje.mongodb.net/zillow?retryWrites=true&w=majority&appName=khareedofrokht";
+//     // Your MongoDB Atlas connection string
+//     const mongoUri = process.env.MONGODB_URI || "mongodb+srv://learnFirstAdmin:mT4aOUQ8IeZlGqf6@khareedofrokht.h4nje.mongodb.net/zillow?retryWrites=true&w=majority&appName=khareedofrokht";
     
-    console.log("🔌 Connecting to MongoDB...");
-    console.log("Connection string (safe):", mongoUri.replace(/:\/\/[^:]+:[^@]+@/, '://***:***@'));
+//     console.log("🔌 Connecting to MongoDB...");
+//     console.log("Connection string (safe):", mongoUri.replace(/:\/\/[^:]+:[^@]+@/, '://***:***@'));
     
-    await mongoose.connect(mongoUri, options);
+//     await mongoose.connect(mongoUri, options);
     
-    isMongoConnected = true;
-    console.log("✅ MongoDB connected successfully");
+//     isMongoConnected = true;
+//     console.log("✅ MongoDB connected successfully");
     
-    // Handle connection events
-    mongoose.connection.on('error', (err) => {
-      console.error('MongoDB connection error:', err);
-      isMongoConnected = false;
-    });
+//     // Handle connection events
+//     mongoose.connection.on('error', (err) => {
+//       console.error('MongoDB connection error:', err);
+//       isMongoConnected = false;
+//     });
     
-    mongoose.connection.on('disconnected', () => {
-      console.log('MongoDB disconnected');
-      isMongoConnected = false;
-    });
+//     mongoose.connection.on('disconnected', () => {
+//       console.log('MongoDB disconnected');
+//       isMongoConnected = false;
+//     });
     
-    return mongoose.connection;
+//     return mongoose.connection;
     
-  } catch (error) {
-    console.error("❌ MongoDB connection failed:", error.message);
-    console.error("Error details:", error);
-    isMongoConnected = false;
-    throw error;
-  }
-}
-
+//   } catch (error) {
+//     console.error("❌ MongoDB connection failed:", error.message);
+//     console.error("Error details:", error);
+//     isMongoConnected = false;
+//     throw error;
+//   }
+// }
+let asdf = 0;
 // Alternative: Simplified connection function
-async function connectDB2() {
-  try {
-    // Simple connection with minimal options
-    const mongoUri = process.env.MONGODB_URI || "mongodb+srv://learnFirstAdmin:mT4aOUQ8IeZlGqf6@khareedofrokht.h4nje.mongodb.net/zillow?retryWrites=true&w=majority&appName=khareedofrokht";
+// async function connectDB2() {
+//   try {
+//     // Simple connection with minimal options
+//     const mongoUri = process.env.MONGODB_URI || "mongodb+srv://learnFirstAdmin:mT4aOUQ8IeZlGqf6@khareedofrokht.h4nje.mongodb.net/zillow?retryWrites=true&w=majority&appName=khareedofrokht";
     
-    console.log("Connecting to MongoDB with simple options...");
+//     console.log("Connecting to MongoDB with simple options...");
     
-    // Remove any existing connections
-    if (mongoose.connection.readyState !== 0) {
-      await mongoose.disconnect();
-    }
+//     // Remove any existing connections
+//     // if (mongoose.connection.readyState !== 0) {
+//     //   await mongoose.disconnect();
+//     // }
     
-    await mongoose.connect(mongoUri);
+//     await mongoose.connect(mongoUri);
     
-    console.log("✅ MongoDB connected");
-    return mongoose.connection;
+//     console.log("✅ MongoDB connected");
+//     return mongoose.connection;
     
-  } catch (error) {
-    console.error("Failed to connect:", error);
-    throw error;
-  }
-}
+//   } catch (error) {
+//     console.error("Failed to connect:", error);
+//     throw error;
+//   }
+// }
 
 // Test connection endpoint
 app.get("/api/test-connection", async (req, res) => {
@@ -249,7 +249,7 @@ app.use(async (req, res, next) => {
   }
   
   try {
-    await connectDB2();
+    await connectDB();
     next();
   } catch (error) {
     console.error("Database connection failed in middleware:", error);
@@ -738,7 +738,8 @@ if (process.env.VERCEL) {
   // Connect to MongoDB on startup for local dev
   async function startServer() {
     try {
-      await connectDB2();
+      // await connectDB2();
+      await connectDB();
       app.listen(PORT, () => {
         console.log(`✅ Server running on port ${PORT}`);
         console.log(`✅ MongoDB connected`);

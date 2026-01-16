@@ -1,6 +1,7 @@
 const House = require("../models/House");
 const axios = require("axios");
 const ApiUsage = require("../models/ApiUsage");
+const connectDB  = require("../config/db");
 const AIRDNA_API_KEY = process.env.AIRDNA_API_KEY;
 
 // async function fetchFromAirDNA(address, bedrooms, bathrooms, accommodates) {
@@ -127,6 +128,7 @@ async function fetchFromAirDNA(address, bedrooms, bathrooms, accommodates) {
 
 exports.getHouseData = async (req, res) => {
     try {
+       await connectDB();
       // Your existing house data logic from housecontroller.js
       const { address, bedrooms, bathrooms, accommodates } = req.body;
 
